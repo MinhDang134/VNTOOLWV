@@ -82,5 +82,9 @@ class Config:
         """Get proxy URL for requests"""
         return f"http://{self.proxy.username}:{self.proxy.password}@{proxy['host']}:{proxy['port']}"
 
+    def get_proxy_list(self) -> List[str]:
+        """Get list of proxies from environment variable"""
+        return [p.strip() for p in os.getenv('PROXY_LIST', '').split(',') if p.strip()]
+
 # Create global config instance
 config = Config() 
