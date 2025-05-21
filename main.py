@@ -1,3 +1,5 @@
+import time
+
 from dotenv import load_dotenv
 from src.crawlers.crawler import WIPOCrawler
 from schedules.scheduler import scheduler
@@ -15,15 +17,14 @@ def crawl_job():
     """Job to crawl new trademarks"""
     try:
         crawler = WIPOCrawler()
-        # Get last crawled number from database or start from 1
-        start_number = 1  # TODO: Implement getting last crawled number
-        end_number = start_number + 100  # Crawl 100 trademarks per job
+        start_number = 1
+        end_number = start_number + 100
         crawler.crawl_trademarks(start_number, end_number)
     except Exception as e:
         logger.error(f"Error in crawl job: {str(e)}")
 
 def monitor_job():
-    """Job to monitor pending trademarks"""
+
     try:
         crawler = WIPOCrawler()
         db = next(get_db())
@@ -44,22 +45,12 @@ def monitor_job():
         logger.error(f"Error in monitor job: {str(e)}")
 
 def main():
-    """Main function to start the application"""
     try:
-        # Load environment variables
         load_dotenv()
-
-        # Initialize database
         init_db()
-
-        # Add jobs to scheduler
         scheduler.add_crawl_job(crawl_job)
         scheduler.add_monitor_job(monitor_job)
-
-        # Start scheduler
         scheduler.start()
-
-        # Keep the main thread alive
         while True:
             time.sleep(1)
 

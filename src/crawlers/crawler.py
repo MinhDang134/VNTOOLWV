@@ -8,7 +8,7 @@ from datetime import datetime
 import requests
 from sqlalchemy.orm import Session
 from src.crawlers.database import get_db
-from src.crawlers.models import Trademark, TrademarkStatusHistory, CrawlLog, Cookie
+from src.crawlers.models import Brand, TrademarkStatusHistory, CrawlLog, Cookie
 from proxy.proxy_manager import ProxyManager
 from logs.logger import logger
 from config.config import config
@@ -147,8 +147,8 @@ class WIPOCrawler:
         """Save trademark data to database"""
         try:
             # Check if trademark exists
-            existing_trademark = db.query(Trademark).filter(
-                Trademark.trademark_code == trademark_data['trademark_code']
+            existing_trademark = db.query(Brand).filter(
+                Brand.trademark_code == trademark_data['trademark_code']
             ).first()
 
             if existing_trademark:
@@ -158,7 +158,7 @@ class WIPOCrawler:
                 existing_trademark.updated_at = datetime.utcnow()
             else:
                 # Create new trademark
-                new_trademark = Trademark(**trademark_data)
+                new_trademark = Brand(**trademark_data)
                 db.add(new_trademark)
                 existing_trademark = new_trademark
 

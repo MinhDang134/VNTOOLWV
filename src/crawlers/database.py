@@ -6,15 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Database configuration
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_PORT = os.getenv('DB_PORT', '5432')
-DB_NAME = os.getenv('DB_NAME', 'wipo_vn')
-DB_USER = os.getenv('DB_USER', 'postgres')
-DB_PASSWORD = os.getenv('DB_PASSWORD', '')
 
 # Create database URL
-DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+DATABASE_URL = f"postgresql://minhdangpy134:minhdang@localhost:5432/vntoolwv"
 
 # Create engine with connection pooling
 engine = create_engine(

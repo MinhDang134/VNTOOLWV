@@ -14,6 +14,7 @@ class ProxyManager:
         self.proxies: List[Dict] = []
         self.current_proxy_index = 0
         self.proxy_request_count = {}  # Track request count per proxy
+        self.current_proxy = None
         self.load_proxies()
 
     def load_proxies(self):
@@ -38,6 +39,8 @@ class ProxyManager:
                 'password': proxy.password
             })
 
+        if self.proxies:
+            self.current_proxy = self.proxies[0]
         logger.info(f"Loaded {len(self.proxies)} proxies")
 
     def get_next_proxy(self) -> Optional[Dict]:
@@ -45,15 +48,22 @@ class ProxyManager:
         if not self.proxies:
             return None
 
-        proxy = self.proxies[self.current_proxy_index]
         self.current_proxy_index = (self.current_proxy_index + 1) % len(self.proxies)
-        return proxy
+        self.current_proxy = self.proxies[self.current_proxy_index]
+        self.proxy_request_count = {}  # Reset request count when switching proxies
+        logger.info(f"Switching to next proxy: {self.current_proxy['host']}:{self.current_proxy['port']}")
+        return self.current_proxy
 
     def get_random_proxy(self) -> Optional[Dict]:
         """Get random proxy from the list"""
         if not self.proxies:
             return None
-        return random.choice(self.proxies)
+        self.current_proxy = random.choice(self.proxies)
+        return self.current_proxy
+
+    def get_current_proxy(self) -> Optional[Dict]:
+        """Get current proxy"""
+        return self.current_proxy
 
     def test_proxy(self, proxy: Dict) -> bool:
         """Test if proxy is working"""
@@ -65,7 +75,8 @@ class ProxyManager:
                 timeout=config.crawler.request_timeout
             )
             return response.status_code == 200
-        except:
+        except Exception as e:
+            logger.error(f"Proxy {proxy['host']}:{proxy['port']} test failed: {str(e)}")
             return False
 
     def update_proxy_status(self, proxy: Dict, is_working: bool):
@@ -81,29 +92,34 @@ class ProxyManager:
             db_proxy.last_used = datetime.utcnow()
             db.commit()
 
-    def increment_proxy_request_count(self, proxy: Dict):
-        """Increment request count for proxy"""
-        proxy_key = f"{proxy['host']}:{proxy['port']}"
+    def increment_request_count(self):
+        """Increment request count for current proxy"""
+        if not self.current_proxy:
+            return
+            
+        proxy_key = f"{self.current_proxy['host']}:{self.current_proxy['port']}"
         self.proxy_request_count[proxy_key] = self.proxy_request_count.get(proxy_key, 0) + 1
+        
+        if self.proxy_request_count[proxy_key] >= config.proxy.max_requests:
+            old_proxy = self.current_proxy
+            self.get_next_proxy()
+            logger.info(f"Proxy {old_proxy['host']}:{old_proxy['port']} reached max requests ({config.proxy.max_requests}). Switching to {self.current_proxy['host']}:{self.current_proxy['port']}")
 
-    def should_rotate_proxy(self, proxy: Dict) -> bool:
-        """Check if proxy should be rotated based on request count"""
-        proxy_key = f"{proxy['host']}:{proxy['port']}"
-        return self.proxy_request_count.get(proxy_key, 0) >= config.proxy.max_requests
+    def handle_proxy_error(self):
+        """Handle proxy error by switching to next proxy"""
+        if not self.current_proxy:
+            return
+            
+        old_proxy = self.current_proxy
+        self.get_next_proxy()
+        logger.warning(f"Proxy {old_proxy['host']}:{old_proxy['port']} encountered an error. Switching to {self.current_proxy['host']}:{self.current_proxy['port']}")
 
     def get_working_proxy(self) -> Optional[Dict]:
         """Get a working proxy"""
         for _ in range(len(self.proxies)):
             proxy = self.get_next_proxy()
-
-            # Check if proxy needs rotation
-            if self.should_rotate_proxy(proxy):
-                logger.info(f"Rotating proxy {proxy['host']}:{proxy['port']} due to max requests")
-                continue
-
             if self.test_proxy(proxy):
                 self.update_proxy_status(proxy, True)
-                self.increment_proxy_request_count(proxy)
                 return proxy
             self.update_proxy_status(proxy, False)
         return None 

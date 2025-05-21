@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from typing import List, Dict
 from dataclasses import dataclass
-
+#dfsdfsdfsd
 @dataclass
 class DatabaseConfig:
     host: str
@@ -36,9 +36,9 @@ class Config:
         self.database = DatabaseConfig(
             host=os.getenv('DB_HOST', 'localhost'),
             port=int(os.getenv('DB_PORT', '5432')),
-            name=os.getenv('DB_NAME', 'wipo_vn'),
-            user=os.getenv('DB_USER', 'postgres'),
-            password=os.getenv('DB_PASSWORD', '')
+            name=os.getenv('DB_NAME', 'DB_NAME'),
+            user=os.getenv('DB_USER', 'DB_USER'),
+            password=os.getenv('DB_PASSWORD', 'DB_PASSWORD')
         )
 
         # Proxy configuration
