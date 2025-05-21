@@ -1,4 +1,3 @@
-import os
 import random
 import requests
 from datetime import datetime
@@ -6,29 +5,27 @@ from typing import Optional, List, Dict
 from sqlalchemy.orm import Session
 from src.crawlers.models import Proxy
 from src.crawlers.database import get_db
+from config.config import config
+from logs.logger import logger
+
 
 class ProxyManager:
     def __init__(self):
         self.proxies: List[Dict] = []
         self.current_proxy_index = 0
+        self.proxy_request_count = {}  # Track request count per proxy
         self.load_proxies()
 
     def load_proxies(self):
         """Load proxies from environment variables and database"""
-        # Load from environment variables
-        proxy_list = os.getenv('PROXY_LIST', '').split(',')
-        proxy_username = os.getenv('PROXY_USERNAME', '')
-        proxy_password = os.getenv('PROXY_PASSWORD', '')
-
-        for proxy in proxy_list:
-            if proxy.strip():
-                host, port = proxy.strip().split(':')
-                self.proxies.append({
-                    'host': host,
-                    'port': int(port),
-                    'username': proxy_username,
-                    'password': proxy_password
-                })
+        # Load from config
+        for proxy in config.proxy.list:
+            self.proxies.append({
+                'host': proxy['host'],
+                'port': proxy['port'],
+                'username': config.proxy.username,
+                'password': config.proxy.password
+            })
 
         # Load from database
         db = next(get_db())
@@ -40,6 +37,8 @@ class ProxyManager:
                 'username': proxy.username,
                 'password': proxy.password
             })
+
+        logger.info(f"Loaded {len(self.proxies)} proxies")
 
     def get_next_proxy(self) -> Optional[Dict]:
         """Get next proxy in rotation"""
@@ -59,11 +58,11 @@ class ProxyManager:
     def test_proxy(self, proxy: Dict) -> bool:
         """Test if proxy is working"""
         try:
-            proxy_url = f"http://{proxy['username']}:{proxy['password']}@{proxy['host']}:{proxy['port']}"
+            proxy_url = config.get_proxy_url(proxy)
             response = requests.get(
                 'https://publish.wipo.int',
                 proxies={'http': proxy_url, 'https': proxy_url},
-                timeout=10
+                timeout=config.crawler.request_timeout
             )
             return response.status_code == 200
         except:
@@ -82,12 +81,29 @@ class ProxyManager:
             db_proxy.last_used = datetime.utcnow()
             db.commit()
 
+    def increment_proxy_request_count(self, proxy: Dict):
+        """Increment request count for proxy"""
+        proxy_key = f"{proxy['host']}:{proxy['port']}"
+        self.proxy_request_count[proxy_key] = self.proxy_request_count.get(proxy_key, 0) + 1
+
+    def should_rotate_proxy(self, proxy: Dict) -> bool:
+        """Check if proxy should be rotated based on request count"""
+        proxy_key = f"{proxy['host']}:{proxy['port']}"
+        return self.proxy_request_count.get(proxy_key, 0) >= config.proxy.max_requests
+
     def get_working_proxy(self) -> Optional[Dict]:
         """Get a working proxy"""
         for _ in range(len(self.proxies)):
             proxy = self.get_next_proxy()
+
+            # Check if proxy needs rotation
+            if self.should_rotate_proxy(proxy):
+                logger.info(f"Rotating proxy {proxy['host']}:{proxy['port']} due to max requests")
+                continue
+
             if self.test_proxy(proxy):
                 self.update_proxy_status(proxy, True)
+                self.increment_proxy_request_count(proxy)
                 return proxy
             self.update_proxy_status(proxy, False)
         return None 
