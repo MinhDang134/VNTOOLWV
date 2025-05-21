@@ -1,9 +1,0 @@
-requests
-beautifulsoup4
-sqlalchemy
-sqlmodel
-psycopg2-binary
-apscheduler
-python-dotenv
-selenium
-webdriver-manager
